@@ -17,6 +17,7 @@ import java.security.NoSuchAlgorithmException;
 import java.security.PrivateKey;
 import java.security.PublicKey;
 import java.security.SecureRandom;
+import java.security.Signature;
 import java.security.spec.InvalidKeySpecException;
 import java.security.spec.X509EncodedKeySpec;
 import java.util.Base64;
@@ -47,17 +48,8 @@ public class Cipher {
         return null;
     }
 //---------------------------------------------------------------------DES/AES------------------------------------
-      public static String AES_DES (String opc,int modo,String metodo, String nombreArchivo){
-           SecureRandom sr = new SecureRandom();
-           int x=0;
-          if(opc.equals("AES")){
-               x=128;
-          }else {
-               x=64;
-          }
-        sr.nextBytes(new byte[x]);
-        String clave= sr.toString();
-        sr.setSeed(System.currentTimeMillis());
+      public static String AES_DES (String opc,int modo,String metodo, String nombreArchivo, String clave){
+          
       //  String salidaArchivo="Error.bmp";
         try{
             SecretKeySpec ks = new SecretKeySpec(clave.getBytes(),opc);
@@ -129,17 +121,8 @@ public class Cipher {
         return null;
     }
       //---------------------------------------------------String opc,int modo,String metodo, String nombreArchivo
-     public static void AES_ECB(String opc,int modo, String nombreArchivo){
-        SecureRandom sr = new SecureRandom();
-           int x=0;
-          if(opc.equals("AES")){
-               x=128;
-          }else {
-               x=64;
-          }
-        sr.nextBytes(new byte[x]);
-        String clave= sr.toString();
-        sr.setSeed(System.currentTimeMillis());
+     public static String AES_DES_ECB(String opc,int modo, String nombreArchivo, String clave){
+        
         try{
             SecretKeySpec ks = new SecretKeySpec(clave.getBytes(),opc);
             try{
@@ -183,6 +166,7 @@ public class Cipher {
                 textoCifrado = textoCifrado + new String(bloque_cifrado,"ISO-8859-1");
                 //ISO-8859-1 es ISO-Latin-1
                 terminal=textoCifrado;
+                return terminal;
                 //fich_out.write(terminal.getBytes("ISO-8859-1"));//escribir fichero
 
             }
@@ -200,6 +184,7 @@ public class Cipher {
         //pasar clave a la clase SecretKey
         catch(java.security.InvalidKeyException ike) {System.out.println(ike.toString());}
         catch(java.security.NoSuchAlgorithmException nsae) {System.out.println("NoSuchAlgorithm");}
+        return null;
     }
     
     
@@ -221,7 +206,32 @@ public class Cipher {
 
         return new String(decriptCipher.doFinal(bytes), UTF_8);
     }
-      
+    
+    public static String sign(String plainText, PrivateKey privateKey) throws Exception {
+//        Signature privateSignature = Signature.getInstance("SHA256withRSA");
+//        privateSignature.initSign(privateKey);
+//        privateSignature.update(plainText.getBytes(UTF_8));
+//
+//        byte[] signature = privateSignature.sign();
+//
+//        return Base64.getEncoder().encodeToString(signature);
+        javax.crypto.Cipher encryptCipher = javax.crypto.Cipher.getInstance("RSA");
+        encryptCipher.init(javax.crypto.Cipher.ENCRYPT_MODE, privateKey);
+
+        byte[] cipherText = encryptCipher.doFinal(plainText.getBytes(UTF_8));
+
+        return Base64.getEncoder().encodeToString(cipherText);
+    }
+
+    public static boolean verify(String plainText, String signature, PublicKey publicKey) throws Exception {
+        Signature publicSignature = Signature.getInstance("SHA256withRSA");
+        publicSignature.initVerify(publicKey);
+        publicSignature.update(plainText.getBytes(UTF_8));
+
+        byte[] signatureBytes = Base64.getDecoder().decode(signature);
+
+        return publicSignature.verify(signatureBytes);
+    }
      //------------------------------abrir key RSA
 //      public static PublicKey (File d){
 //        String ruta = d.getAbsolutePath();
@@ -245,6 +255,9 @@ public class Cipher {
         String nombre= d.getAbsolutePath();
         String txt = new String();
         String digesto= new String();
+        String firma= new String();
+        String c=new String ();
+        String kDAES= new String ();
         long tam=0, leidos=0, n=0;
         
         try {
@@ -261,11 +274,14 @@ public class Cipher {
                     txt=txt+ b.toString();
                     leidos= leidos + n;
             }
-            
+        //-----------digesto HASH
             digesto= getHash(txt,hashType);
+            
             byte[] bytes = Files.readAllBytes(KeyRSA.toPath());
             byte[] bytes2 = Files.readAllBytes(KPRec.toPath());
             /* Generate public key. */
+            PrivateKey priv;
+            PublicKey pub;
             X509EncodedKeySpec ks = new X509EncodedKeySpec(bytes);
             KeyFactory kf = null;
             X509EncodedKeySpec ks2 = new X509EncodedKeySpec(bytes2);
@@ -277,12 +293,41 @@ public class Cipher {
                 Logger.getLogger(Cipher.class.getName()).log(Level.SEVERE, null, ex);
             }
             if (modo==1){//modo 1 firmar 
-                PrivateKey priv=kf.generatePrivate(ks);
-                PublicKey pub = kf2.generatePublic(ks2);
+                priv=kf.generatePrivate(ks);
+                pub = kf2.generatePublic(ks2);
             }else {
-                 PublicKey pub = kf.generatePublic(ks);
-                 PrivateKey priv=kf2.generatePrivate(ks2);
+                pub = kf.generatePublic(ks);
+                priv=kf2.generatePrivate(ks2);
             }
+    //-----------------------firmar-------        
+            firma=sign (digesto, priv);
+            
+    //-----------------------------DES o AES
+        //--------------------Clave
+        SecureRandom sr = new SecureRandom();
+              int x=0;
+             if(opc.equals("AES")){
+                  x=128;
+             }else {
+                  x=64;
+             }
+           sr.nextBytes(new byte[x]);
+           String clave= sr.toString();
+           sr.setSeed(System.currentTimeMillis());
+
+
+           if(metodo.equals("ECB")){
+               c = AES_DES_ECB(opc, modo,ruta , clave);
+           }else{
+                 c = AES_DES(opc,modo,metodo,ruta, clave);
+           }
+           
+           kDAES= RSAencrypt(clave, pub);
+           
+        
+        
+        
+        
             //PublicKey pub = kf.generatePublic(ks);
             //PrivateKey priv=kf.generatePrivate(ks);
             
@@ -293,6 +338,9 @@ public class Cipher {
         } catch (IOException ex) {
             Logger.getLogger(Cipher.class.getName()).log(Level.SEVERE, null, ex);
         } catch (InvalidKeySpecException ex) {
+            Logger.getLogger(Cipher.class.getName()).log(Level.SEVERE, null, ex);
+        } catch (Exception ex) {
+            System.out.println("Error firmar");
             Logger.getLogger(Cipher.class.getName()).log(Level.SEVERE, null, ex);
         }
         
