@@ -13,9 +13,11 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.security.InvalidAlgorithmParameterException;
 import java.security.KeyFactory;
+import java.security.NoSuchAlgorithmException;
 import java.security.PrivateKey;
 import java.security.PublicKey;
 import java.security.SecureRandom;
+import java.security.spec.InvalidKeySpecException;
 import java.security.spec.X509EncodedKeySpec;
 import java.util.Base64;
 import java.util.logging.Level;
@@ -221,23 +223,24 @@ public class Cipher {
     }
       
      //------------------------------abrir key RSA
-      public static PublicKey (File d){
-        String ruta = d.getAbsolutePath();
-        String nombre= d.getAbsolutePath();
-        Path path = d.toPath();
-        
-        byte[] bytes = Files.readAllBytes(path);
-      //  byte[] bytes = Files.readAllBytes(d);
-
-        /* Generate public key. */
-        X509EncodedKeySpec ks = new X509EncodedKeySpec(bytes);
-        KeyFactory kf = KeyFactory.getInstance("RSA");
-        PublicKey pub = kf.generatePublic(ks);
-        return pub;
-      }
+//      public static PublicKey (File d){
+//        String ruta = d.getAbsolutePath();
+//        String nombre= d.getAbsolutePath();
+//        Path path = d.toPath();
+//        
+//        byte[] bytes = Files.readAllBytes(path);
+//      //  byte[] bytes = Files.readAllBytes(d);
+//
+//        /* Generate public key. */
+//        X509EncodedKeySpec ks = new X509EncodedKeySpec(bytes);
+//        KeyFactory kf = KeyFactory.getInstance("RSA");
+//        PublicKey pub = kf.generatePublic(ks);
+//        return pub;
+//      }
       
+   
       //---------------------Docum¿ento a cifrar, AES/DES, Cifrar,Decifrar, METDOD OFB;TC, HASH
-      public static void Firmar(File d, String opc,int modo,String metodo, String hashType, File KeyRSA ){
+      public static void Firmar(File d, String opc,int modo,String metodo, String hashType, File KeyRSA, File KPRec ){
         String ruta = d.getAbsolutePath();
         String nombre= d.getAbsolutePath();
         String txt = new String();
@@ -260,11 +263,36 @@ public class Cipher {
             }
             
             digesto= getHash(txt,hashType);
-            
+            byte[] bytes = Files.readAllBytes(KeyRSA.toPath());
+            byte[] bytes2 = Files.readAllBytes(KPRec.toPath());
+            /* Generate public key. */
+            X509EncodedKeySpec ks = new X509EncodedKeySpec(bytes);
+            KeyFactory kf = null;
+            X509EncodedKeySpec ks2 = new X509EncodedKeySpec(bytes2);
+            KeyFactory kf2 = null;
+            try {
+                kf = KeyFactory.getInstance("RSA");
+                kf2 = KeyFactory.getInstance("RSA");
+            } catch (NoSuchAlgorithmException ex) {
+                Logger.getLogger(Cipher.class.getName()).log(Level.SEVERE, null, ex);
+            }
+            if (modo==1){//modo 1 firmar 
+                PrivateKey priv=kf.generatePrivate(ks);
+                PublicKey pub = kf2.generatePublic(ks2);
+            }else {
+                 PublicKey pub = kf.generatePublic(ks);
+                 PrivateKey priv=kf2.generatePrivate(ks2);
+            }
+            //PublicKey pub = kf.generatePublic(ks);
+            //PrivateKey priv=kf.generatePrivate(ks);
             
             
         } catch (FileNotFoundException ex) {
             System.out.println("Error al abrir el archivo a frimar \n");
+            Logger.getLogger(Cipher.class.getName()).log(Level.SEVERE, null, ex);
+        } catch (IOException ex) {
+            Logger.getLogger(Cipher.class.getName()).log(Level.SEVERE, null, ex);
+        } catch (InvalidKeySpecException ex) {
             Logger.getLogger(Cipher.class.getName()).log(Level.SEVERE, null, ex);
         }
         
