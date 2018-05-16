@@ -1,16 +1,18 @@
 
+import java.io.BufferedReader;
+import java.io.ByteArrayOutputStream;
 import java.io.DataInputStream;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
+import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.io.OutputStreamWriter;
 import java.io.Writer;
-import static java.nio.charset.StandardCharsets.UTF_8;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -40,7 +42,7 @@ public class MyCipher {
     
     //-----------------------------DES/AES--------------------------------------
     public static String AES_DES(String standard,int modo,String metodo,
-            String nombreArchivo, String clave){
+            File file, String clave){
         /*
             RETURN CipherText
             MODO:   1 - ENCRYPT
@@ -93,28 +95,23 @@ public class MyCipher {
                 }
                 byte[] bloque_cifrado;
                 String textoCifrado;
-                //OutputStream fich_out = new FileOutputStream( salidaArchivo );
                 try ( //Leer fichero
-                    InputStream archivo = new FileInputStream( nombreArchivo )) {
-                    //OutputStream fich_out = new FileOutputStream( salidaArchivo );
+                    InputStream archivo = new FileInputStream( file )) {
                     byte[] buffer = new byte[8];
                     textoCifrado = new String();
                     int fin_archivo = -1;
                     int leidos=0;//numero de bytes leidos
                     leidos = archivo.read(buffer); 
-                    System.out.println("leidos "+leidos);
                     while( leidos != fin_archivo ) {
                         bloque_cifrado = cifrado.update(buffer,0,leidos);
                         textoCifrado = textoCifrado
                                 + new String(bloque_cifrado,"ISO-8859-1");
                         leidos = archivo.read(buffer);
-                        System.out.println("leidos "+leidos);
                     }
                 }
                 bloque_cifrado = cifrado.doFinal();//textoCifrado.getBytes());
                 textoCifrado = textoCifrado 
-                        + new String(bloque_cifrado,"ISO-8859-1");
-                //ISO-8859-1 es ISO-Latin-1
+                        + new String(bloque_cifrado,"ISO-8859-1"); //Latin-1
                 return textoCifrado;
             }
             //Inicializacion de cifrado
@@ -182,41 +179,50 @@ public class MyCipher {
         }
     }
     
-    public static byte[] RSAencrypt(PrivateKey privateKey, String message) 
+    public static byte[] privateKeyRSAencrypt(PrivateKey privateKey, String message) 
             throws Exception {
         Cipher cipher = Cipher.getInstance("RSA");  
         cipher.init(Cipher.ENCRYPT_MODE, privateKey);  
         return cipher.doFinal(message.getBytes());  
     }
     
-    public static byte[] RSAdecrypt(PublicKey publicKey, byte [] encrypted) 
+    public static byte[] publicKeyRSAencrypt(PublicKey publicKey, String message) 
+            throws Exception {
+        Cipher cipher = Cipher.getInstance("RSA");  
+        cipher.init(Cipher.ENCRYPT_MODE, publicKey);  
+        return cipher.doFinal(message.getBytes());  
+    }
+    
+    public static byte[] publicKeyRSAdecrypt(PublicKey publicKey, byte [] encrypted) 
             throws Exception {
         Cipher cipher = Cipher.getInstance("RSA");  
         cipher.init(Cipher.DECRYPT_MODE, publicKey);
         return cipher.doFinal(encrypted);
     }
     
-    public static PrivateKey readPrivateKey(String keyFile){    
-        try {
-            /* Read all bytes from the private key file */
-            Path path = Paths.get(keyFile);
-            byte[] bytes = Files.readAllBytes(path);
-            /* Generate private key. */
-            PKCS8EncodedKeySpec ks = new PKCS8EncodedKeySpec(bytes);
-            KeyFactory kf = KeyFactory.getInstance("RSA");
-            PrivateKey pvt = kf.generatePrivate(ks);
-            return pvt;
-        } catch (NoSuchAlgorithmException | IOException ex) {
-            Logger.getLogger(MyCipher.class.getName()).log(Level.SEVERE, null, ex);
-        } catch (InvalidKeySpecException ex) {
-            Logger.getLogger(MyCipher.class.getName()).log(Level.SEVERE, null, ex);
-        }
-        return null;
+    public static byte[] privateKeyRSAdecrypt(PrivateKey privateKey, byte [] encrypted) 
+            throws Exception {   
+        Cipher cipher = Cipher.getInstance("RSA");  
+        cipher.init(Cipher.DECRYPT_MODE, privateKey);
+        return cipher.doFinal(encrypted);
     }
     
-    public static PublicKey readPublicKey(String name) 
+    
+    public static PrivateKey readPrivateKey(File d) 
+            throws IOException, NoSuchAlgorithmException, InvalidKeySpecException{    
+        String ruta = d.getAbsolutePath();
+        String nombre= d.getAbsolutePath();
+        Path path = d.toPath();
+        byte[] bytes = null;
+        bytes = Files.readAllBytes(path);
+        PKCS8EncodedKeySpec ks = new PKCS8EncodedKeySpec(bytes);
+        KeyFactory kf = KeyFactory.getInstance("RSA");
+        PrivateKey pvt = kf.generatePrivate(ks);
+        return pvt;
+    }
+    
+    public static PublicKey readPublicKey(File d) 
             throws NoSuchAlgorithmException, InvalidKeySpecException, IOException{
-        File d = new File(name);
         String ruta = d.getAbsolutePath();
         String nombre= d.getAbsolutePath();
         Path path = d.toPath();
@@ -228,22 +234,121 @@ public class MyCipher {
         KeyFactory kf = KeyFactory.getInstance("RSA");
         PublicKey pub = kf.generatePublic(ks);
         return pub;
-      }
+    }
     
+    public static String leerArchivo(File archivo) 
+            throws FileNotFoundException, IOException {
+        String cadena="";
+        String lectura="";
+        FileReader f = new FileReader(archivo);
+        BufferedReader b = new BufferedReader(f);
+        while((cadena = b.readLine())!=null) {
+            lectura+=cadena;
+        }
+        b.close();
+        return lectura;
+    }
+    
+    public static void processEncrypt(String standard, String operationMode, 
+            String hashFunction, File privateKeyFile, File publicKeyFile, 
+            File originalFile, String keyStandard){
+        String data;
+        try {
+            data = leerArchivo(originalFile);
+            String hashGotten=getHash(data, hashFunction);
+            PrivateKey privateKey = readPrivateKey(privateKeyFile);
+            PublicKey publicKey = readPublicKey(publicKeyFile);
+            // 256 Bytes cipherKeyStandardBytes and hash_rsa
+            byte[] hash_rsa=privateKeyRSAencrypt(privateKey, hashGotten);
+            byte [] cipherKeyStandardBytes=publicKeyRSAencrypt(publicKey,keyStandard);
+            String cipherText=AES_DES(standard,1,operationMode, 
+                    originalFile , keyStandard);
+            ByteArrayOutputStream outputStream = new ByteArrayOutputStream( );
+            outputStream.write( hash_rsa );
+            outputStream.write( cipherKeyStandardBytes );
+            outputStream.write( cipherText.getBytes("ISO-8859-1") );
+            OutputStream fich_outA = new FileOutputStream("archivoAuxiliar1.txt");
+            OutputStream fich_out = new FileOutputStream ( "archivoFirmado.txt" );
+            fich_out.write(outputStream.toByteArray());
+            fich_outA.write(cipherText.getBytes("ISO-8859-1"));
+        } catch (IOException ex) {
+            Logger.getLogger(MyCipher.class.getName()).log(Level.SEVERE, null, ex);
+        } catch (NoSuchAlgorithmException ex) {
+            Logger.getLogger(MyCipher.class.getName()).log(Level.SEVERE, null, ex);
+        } catch (InvalidKeySpecException ex) {
+            Logger.getLogger(MyCipher.class.getName()).log(Level.SEVERE, null, ex);
+        } catch (Exception ex) {
+            Logger.getLogger(MyCipher.class.getName()).log(Level.SEVERE, null, ex);
+        }
+    }
+    
+    public static boolean processDecrypt(String standard, String operationMode, 
+            String hashFunction, File privateKeyFile, File publicKeyFile, 
+            File originalFile){
+        String data;
+        try {
+            byte[] hashBuffer = new byte[256];
+            byte[] cipherKeyBuffer = new byte[256];
+            byte[] dataBuffer = new byte[1024];
+            String textoCifrado="";
+            int fin_archivo = -1;
+            PrivateKey privateKey = readPrivateKey(privateKeyFile);
+            PublicKey publicKey = readPublicKey(publicKeyFile);
+            InputStream archivo = new FileInputStream(originalFile);
+            int leidos=0;//numero de bytes leidos
+            archivo.read(hashBuffer);
+            archivo.read(cipherKeyBuffer);
+            
+            OutputStream fich_out = new FileOutputStream ( "archivoAuxiliar.txt" );
+            ByteArrayOutputStream outputStream = new ByteArrayOutputStream( );
+            leidos = archivo.read(dataBuffer);
+            while( leidos != fin_archivo ) {
+                outputStream.write( dataBuffer );
+                leidos = archivo.read(dataBuffer);          
+            }
+            fich_out.write(outputStream.toByteArray());
+            fich_out.close();
+            archivo.close();
+            String clave=new String(privateKeyRSAdecrypt(privateKey, cipherKeyBuffer));
+            System.out.println(clave);
+            String hash=new String(publicKeyRSAdecrypt(publicKey, hashBuffer));
+            System.out.println(hash);
+            String textoOriginal=AES_DES(standard, 2, operationMode, new File("archivoAuxiliar1.txt"), clave);
+            System.out.println(textoOriginal);
+            String hashObtenido=getHash(textoOriginal, hashFunction);
+            System.out.println(hashObtenido);
+            if(hashObtenido.equals(hash))
+                return true;
+            archivo.close();
+            
+        } catch (IOException ex) {
+            Logger.getLogger(MyCipher.class.getName()).log(Level.SEVERE, null, ex);
+        } catch (NoSuchAlgorithmException ex) {
+            Logger.getLogger(MyCipher.class.getName()).log(Level.SEVERE, null, ex);
+        } catch (InvalidKeySpecException ex) {
+            Logger.getLogger(MyCipher.class.getName()).log(Level.SEVERE, null, ex);
+        } catch (Exception ex) {
+            Logger.getLogger(MyCipher.class.getName()).log(Level.SEVERE, null, ex);
+        }
+        return false;
+    }
+        
     public static void main(String[] args) throws Exception {
-        RSAKeysGenerator();
-        PrivateKey privateKey = readPrivateKey("RSAPrivateKey.key");
-        PublicKey pubKey = readPublicKey("RSAPublicKey.key");
+        /*/RSAKeysGenerator();
+        PrivateKey privateKey = readPrivateKey(new File("RSAPrivateKey.key"));
+        PublicKey pubKey = readPublicKey(new File("RSAPublicKey.key"));
         byte [] encrypted = RSAencrypt(privateKey, "This is a secret message");     
         System.out.println(new String(encrypted));  // <<encrypted message>>
         // decrypt the message
         byte[] secret = RSAdecrypt(pubKey, encrypted);                                 
         System.out.println(new String(secret));     // This is a secret message
+        */
+        processEncrypt("DES","ECB","MD5",new File("RSAPrivateKey.key"),
+                new File("RSAPublicKey.key"),new File("archivo.txt"),"asegurar");
+        
+        processDecrypt("DES","ECB","MD5",new File("RSAPrivateKey.key"),
+                new File("RSAPublicKey.key"),new File("archivoFirmado.txt"));
+        
     }
     
-    //---------PRUEBAS LISTA---------
-    //AES - DES 
-    //HASH 
-    //RSA KEY GENERATOR
-    //RSA ENCRYPT-DECRYPT
-}
+ }
