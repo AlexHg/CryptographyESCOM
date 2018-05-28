@@ -292,7 +292,7 @@ public class MyCipher {
             archivo.read(hashBuffer);
             archivo.read(cipherKeyBuffer);
             
-            OutputStream fich_out = new FileOutputStream ( "archivoAuxiliar.txt" );
+            OutputStream fich_out = new FileOutputStream ( "archivoDecifrado.txt" );
             ByteArrayOutputStream outputStream = new ByteArrayOutputStream( );
             leidos = archivo.read(dataBuffer);
             while( leidos != fin_archivo ) {
@@ -308,6 +308,9 @@ public class MyCipher {
             System.out.println(hash);
             String textoOriginal=AES_DES(standard, 2, operationMode, new File("archivoAuxiliar1.txt"), clave);
             System.out.println(textoOriginal);
+            fich_out = new FileOutputStream ( "archivoDecifrado.txt" );
+            fich_out.write(textoOriginal.getBytes());
+            fich_out.close();
             String hashObtenido=getHash(textoOriginal, hashFunction);
             System.out.println(hashObtenido);
             if(hashObtenido.equals(hash))
